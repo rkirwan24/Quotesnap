@@ -282,7 +282,7 @@ export function createTemplate(userId: string, data: Row): Row {
   const keys = Object.keys(serialized).join(', ')
   const placeholders = Object.keys(serialized).map(() => '?').join(', ')
   db.prepare(`INSERT INTO quote_templates (${keys}) VALUES (${placeholders})`).run(...Object.values(serialized))
-  return db.prepare('SELECT * FROM quote_templates WHERE id = ?').get(id) as Row
+  return parseRow(db.prepare('SELECT * FROM quote_templates WHERE id = ?').get(id) as Row)
 }
 
 // ── User/auth operations ──────────────────────────────────────────────────────
