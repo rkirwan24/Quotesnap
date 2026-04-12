@@ -1,12 +1,24 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { createLocalServerClient } from './local/server-client'
 
-export async function createServerSupabaseClient() {
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const IS_LOCAL = !SUPABASE_URL || SUPABASE_URL === 'https://placeholder.supabase.co'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function createServerSupabaseClient(): Promise<SupabaseClient<any, 'public', any>> {
+  if (IS_LOCAL) {
+    const client = await createLocalServerClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return client as unknown as SupabaseClient<any, 'public', any>
+  }
+
   const cookieStore = await cookies()
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key',
+    SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
     {
       cookies: {
         getAll() {

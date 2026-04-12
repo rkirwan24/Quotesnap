@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['@react-pdf/renderer'],
+    serverComponentsExternalPackages: ['@react-pdf/renderer', 'better-sqlite3'],
   },
   images: {
     remotePatterns: [
@@ -10,6 +10,12 @@ const nextConfig = {
         hostname: '*.supabase.co',
         port: '',
         pathname: '/storage/v1/object/**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+        pathname: '/api/storage/**',
       },
     ],
   },

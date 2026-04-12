@@ -7,7 +7,8 @@ import { QuotePDF } from '@/lib/pdf'
 import type { Quote, Profile, Client } from '@/types'
 
 function getResend() {
-  return new Resend(process.env.RESEND_API_KEY || 'placeholder')
+  if (!process.env.RESEND_API_KEY) return null
+  return new Resend(process.env.RESEND_API_KEY)
 }
 
 export async function POST(request: NextRequest) {
@@ -109,7 +110,15 @@ export async function POST(request: NextRequest) {
     const businessName = profile?.business_name || 'QuoteSnap'
     const fromEmail = process.env.EMAIL_FROM || 'quotes@quotesnap.com.au'
 
-    await getResend().emails.send({
+    const resend = getResend()
+    if (!resend) {
+      // Demo mode — log the email to console instead of sending
+      console.log(`[Demo] Email would be sent to: ${recipientEmail}`)
+      console.log(`[Demo] Subject: Quote ${quote.quote_number}`)
+      return NextResponse.json({ success: true, demo: true })
+    }
+
+    await resend.emails.send({
       from: `${businessName} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Quote ${quote.quote_number} from ${businessName}`,
