@@ -13,5 +13,13 @@ export function createClient(): SupabaseClient<any, 'public', any> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return createLocalBrowserClient() as unknown as SupabaseClient<any, 'public', any>
   }
-  return createBrowserClient(SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '')
+  try {
+    return createBrowserClient(SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '')
+  } catch {
+    // Fallback to local client if Supabase URL is invalid (e.g. during SSR with missing env vars)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createLocalBrowserClient } = require('./local/browser-client')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return createLocalBrowserClient() as unknown as SupabaseClient<any, 'public', any>
+  }
 }
