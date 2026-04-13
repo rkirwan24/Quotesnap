@@ -3,7 +3,8 @@ import path from 'path'
 import fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 
-const DATA_DIR = path.join(process.cwd(), 'data')
+// Vercel serverless: only /tmp is writable. Locally use ./data/
+const DATA_DIR = process.env.VERCEL ? '/tmp' : path.join(process.cwd(), 'data')
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
 
 const DB_PATH = path.join(DATA_DIR, 'quotesnap.db')
