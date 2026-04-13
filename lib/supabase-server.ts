@@ -1,7 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { createLocalServerClient } from './local/server-client'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const IS_LOCAL = !SUPABASE_URL || SUPABASE_URL === 'https://placeholder.supabase.co'
@@ -9,6 +8,8 @@ const IS_LOCAL = !SUPABASE_URL || SUPABASE_URL === 'https://placeholder.supabase
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function createServerSupabaseClient(): Promise<SupabaseClient<any, 'public', any>> {
   if (IS_LOCAL) {
+    // Dynamic import so better-sqlite3 (native module) is never loaded on Vercel
+    const { createLocalServerClient } = await import('./local/server-client')
     const client = await createLocalServerClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return client as unknown as SupabaseClient<any, 'public', any>

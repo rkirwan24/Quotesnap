@@ -38,6 +38,9 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.0.3"
   },
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "devDependencies": {
     "@types/node": "^22.8.0",
     "@types/react": "^18.3.12",

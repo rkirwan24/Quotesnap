@@ -2,7 +2,9 @@ import path from 'path'
 import fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 
-const STORAGE_DIR = path.join(process.cwd(), 'data', 'storage')
+// Vercel serverless: only /tmp is writable. Locally use ./data/storage
+const BASE_DIR = process.env.VERCEL ? '/tmp' : path.join(process.cwd(), 'data')
+const STORAGE_DIR = path.join(BASE_DIR, 'storage')
 
 export function getStoragePath(bucket: string, filename: string): string {
   const dir = path.join(STORAGE_DIR, bucket, path.dirname(filename))
