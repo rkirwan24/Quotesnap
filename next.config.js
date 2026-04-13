@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['@react-pdf/renderer', 'better-sqlite3'],
+    serverComponentsExternalPackages: ['@react-pdf/renderer', 'better-sqlite3', 'pg'],
   },
   images: {
     remotePatterns: [

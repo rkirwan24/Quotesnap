@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserByEmail, createUser } from '@/lib/local/db'
+import { getUserByEmail, createUser } from '@/lib/db'
 import { hashPassword, verifyPassword, createSessionToken, getSessionCookieOptions, getSessionFromCookies } from '@/lib/local/auth'
 
 // POST /api/local/auth  — sign-in, sign-up, sign-out, get-user
@@ -12,11 +12,11 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
     }
-    const existing = getUserByEmail(email)
+    const existing = await getUserByEmail(email)
     if (existing) {
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
     }
-    const user = createUser(email, hashPassword(password), contact_name)
+    const user = await createUser(email, hashPassword(password), contact_name)
     const token = await createSessionToken(user.id as string, email)
     const response = NextResponse.json({ user })
     response.cookies.set({ ...getSessionCookieOptions(), value: token })
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   if (action === 'sign-in') {
     const { email, password } = body
-    const user = getUserByEmail(email)
+    const user = await getUserByEmail(email)
     if (!user || !verifyPassword(password, user.password_hash)) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
@@ -48,14 +48,12 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'magic-link') {
-    // Demo mode: immediately sign in without sending an email
     const { email } = body
-    let user = getUserByEmail(email)
+    let user = await getUserByEmail(email)
     if (!user) {
-      user = createUser(email, hashPassword(Math.random().toString(36))) as unknown as typeof user
+      user = await createUser(email, hashPassword(Math.random().toString(36))) as unknown as typeof user
     }
     const token = await createSessionToken(user!.id as string, email)
-    // Set session cookie so the browser is authenticated
     const response = NextResponse.json({ token, user: { id: user!.id, email } })
     response.cookies.set({ ...getSessionCookieOptions(), value: token })
     return response
