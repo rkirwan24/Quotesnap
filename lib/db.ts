@@ -12,8 +12,17 @@ async function pg() {
 }
 
 // SQLite is synchronous — wrap in Promise.resolve so callers always await
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const sq = () => require('./local/db') as typeof import('./local/db')
+function sq(): typeof import('./local/db') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('./local/db')
+  } catch (err) {
+    throw new Error(
+      'Database unavailable. Set POSTGRES_URL in your Vercel project environment variables. ' +
+      (err instanceof Error ? err.message : String(err))
+    )
+  }
+}
 
 // ── User operations ───────────────────────────────────────────────────────────
 
