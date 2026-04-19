@@ -19,149 +19,201 @@ jobs:
         run: |
           TOKEN="${{ secrets.VERCEL_TOKEN }}"
 
+          if [ -z "$TOKEN" ]; then
+            echo "⚠️  VERCEL_TOKEN secret not set — skipping DB provision"
+            exit 0
+          fi
+
+          # ── 0. Get user/team context ─────────────────────────────────────────
+          echo "🔐 Getting Vercel account context..."
+          USER_INFO=$(curl -sf -H "Authorization: Bearer $TOKEN" \
+            "https://api.vercel.com/v2/user" || echo '{}')
+          echo "User info: $(echo "$USER_INFO" | node -e "
+            let d='';process.stdin.on('data',c=>d+=c);
+            process.stdin.on('end',()=>{
+              try{const u=JSON.parse(d).user||{};console.log('username='+u.username+' defaultTeamId='+u.defaultTeamId);}
+              catch(e){console.log('parse error');}
+            });")"
+
+          TEAM_ID=$(echo "$USER_INFO" | node -e "
+            let d='';process.stdin.on('data',c=>d+=c);
+            process.stdin.on('end',()=>{
+              try{console.log(JSON.parse(d).user?.defaultTeamId||'');}
+              catch(e){console.log('');}
+            });" || echo "")
+
+          # Build optional team param for all API calls
+          TPARAM=""
+          if [ -n "$TEAM_ID" ]; then
+            TPARAM="?teamId=$TEAM_ID"
+            echo "👥 Team context: $TEAM_ID"
+          fi
+
           # ── 1. Find the Vercel project ───────────────────────────────────────
           echo "🔍 Finding Vercel project..."
           PROJECTS=$(curl -sf -H "Authorization: Bearer $TOKEN" \
-            "https://api.vercel.com/v9/projects?limit=100" || echo '{"projects":[]}')
+            "https://api.vercel.com/v9/projects?limit=100${TEAM_ID:+&teamId=$TEAM_ID}" || echo '{"projects":[]}')
 
-          PROJECT_ID=$(echo "$PROJECTS" | node -e "
-            let d=''; process.stdin.on('data',c=>d+=c);
+          PROJECT_INFO=$(echo "$PROJECTS" | node -e "
+            let d='';process.stdin.on('data',c=>d+=c);
             process.stdin.on('end',()=>{
               try {
                 const ps = JSON.parse(d).projects || [];
+                console.log('All projects: ' + ps.map(p=>p.name).join(', '));
                 const p = ps.find(p =>
                   (p.name||'').toLowerCase().includes('quotesnap') ||
-                  (p.alias||[]).some(a=>(a.domain||a||'').includes('quotesnap'))
+                  (p.alias||[]).some(a=>(a.domain||a||'').toLowerCase().includes('quotesnap'))
                 );
-                console.log(p ? p.id : '');
-              } catch(e){ console.log(''); }
-            });
-          " || echo "")
+                if(p) process.stdout.write('FOUND:' + p.id + ':' + p.name);
+                else process.stdout.write('');
+              } catch(e){ process.stdout.write(''); }
+            });" || echo "")
 
-          if [ -z "$PROJECT_ID" ]; then
-            echo "⚠️  Could not find project — skipping auto-provision"
+          echo "$PROJECT_INFO" | head -1
+
+          if echo "$PROJECT_INFO" | grep -q "^FOUND:"; then
+            PROJECT_ID=$(echo "$PROJECT_INFO" | grep "^FOUND:" | cut -d: -f2)
+            PROJECT_NAME=$(echo "$PROJECT_INFO" | grep "^FOUND:" | cut -d: -f3)
+          else
+            echo "⚠️  Could not find QuoteSnap project — skipping auto-provision"
             exit 0
           fi
-          echo "✅ Project ID: $PROJECT_ID"
+          echo "✅ Project: $PROJECT_NAME ($PROJECT_ID)"
 
           # ── 2. Check if POSTGRES_URL already set ────────────────────────────
           ENV_VARS=$(curl -sf -H "Authorization: Bearer $TOKEN" \
-            "https://api.vercel.com/v9/projects/$PROJECT_ID/env" || echo '{"envs":[]}')
+            "https://api.vercel.com/v9/projects/$PROJECT_ID/env${TPARAM}" || echo '{"envs":[]}')
 
           EXISTING=$(echo "$ENV_VARS" | node -e "
-            let d=''; process.stdin.on('data',c=>d+=c);
+            let d='';process.stdin.on('data',c=>d+=c);
             process.stdin.on('end',()=>{
-              try {
-                const envs = JSON.parse(d).envs || [];
-                console.log(envs.find(e => e.key === 'POSTGRES_URL') ? 'yes' : '');
-              } catch(e){ console.log(''); }
-            });
-          " || echo "")
+              try{const e=JSON.parse(d).envs||[];console.log(e.find(e=>e.key==='POSTGRES_URL')?'yes':'');}
+              catch(e){console.log('');}
+            });" || echo "")
 
           if [ -n "$EXISTING" ]; then
             echo "✅ POSTGRES_URL already set — nothing to do"
             exit 0
           fi
+          echo "📭 POSTGRES_URL not set — attempting to provision..."
 
-          # ── 3. Check for existing stores to link ────────────────────────────
+          # ── 3. List existing Postgres stores ─────────────────────────────────
           echo "🔍 Looking for existing Postgres stores..."
           STORES=$(curl -sf -H "Authorization: Bearer $TOKEN" \
-            "https://api.vercel.com/v1/storage?limit=20&resourceType=postgres" || echo '{"stores":[]}')
-          echo "Stores response: $(echo "$STORES" | head -c 400)"
+            "https://api.vercel.com/v1/storage?limit=20&resourceType=postgres${TEAM_ID:+&teamId=$TEAM_ID}" \
+            || echo '{}')
+          echo "Stores raw: $(echo "$STORES" | head -c 500)"
 
           STORE_ID=$(echo "$STORES" | node -e "
-            let d=''; process.stdin.on('data',c=>d+=c);
+            let d='';process.stdin.on('data',c=>d+=c);
             process.stdin.on('end',()=>{
-              try { console.log((JSON.parse(d).stores||[])[0]?.id || ''); }
-              catch(e){ console.log(''); }
-            });
-          " || echo "")
+              try{
+                const j=JSON.parse(d);
+                const arr=j.stores||j.data||j.items||[];
+                console.log(arr[0]?.id||'');
+              }catch(e){console.log('');}
+            });" || echo "")
 
-          # ── 4. Link existing store if found ─────────────────────────────────
           if [ -n "$STORE_ID" ]; then
+            # ── 4. Link existing store ────────────────────────────────────────
             echo "🔗 Linking existing store $STORE_ID to project..."
-            curl -sf -X POST \
+            LINK_RESP=$(curl -s -w "\nHTTPSTATUS:%{http_code}" \
+              -X POST \
               -H "Authorization: Bearer $TOKEN" \
               -H "Content-Type: application/json" \
               -d "{\"type\":\"postgres\",\"storeId\":\"$STORE_ID\"}" \
-              "https://api.vercel.com/v9/projects/$PROJECT_ID/storage" | head -c 300 || true
-            echo ""
-            sleep 3
+              "https://api.vercel.com/v9/projects/$PROJECT_ID/storage${TPARAM}")
+            LINK_CODE=$(echo "$LINK_RESP" | grep "HTTPSTATUS:" | cut -d: -f2)
+            echo "Link HTTP status: $LINK_CODE"
+            echo "Link response: $(echo "$LINK_RESP" | sed 's/HTTPSTATUS:.*//' | head -c 400)"
+            sleep 5
           else
             # ── 5. Create new Postgres store ─────────────────────────────────
             echo "🗄️  Creating new Postgres database..."
-            NEW_STORE=$(curl -sf -X POST \
+            CREATE_BODY="{\"name\":\"quotesnap-db\",\"projectIds\":[\"$PROJECT_ID\"]${TEAM_ID:+,\"teamId\":\"$TEAM_ID\"}}"
+            echo "Request: POST /v1/storage/postgres body=$CREATE_BODY"
+
+            NEW_STORE=$(curl -s -w "\nHTTPSTATUS:%{http_code}" \
+              -X POST \
               -H "Authorization: Bearer $TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"name\":\"quotesnap-db\",\"projectIds\":[\"$PROJECT_ID\"]}" \
-              "https://api.vercel.com/v1/storage/postgres" || echo '{}')
+              -d "$CREATE_BODY" \
+              "https://api.vercel.com/v1/storage/postgres${TPARAM}")
 
-            echo "Creation response: $(echo "$NEW_STORE" | head -c 600)"
+            HTTP_CODE=$(echo "$NEW_STORE" | grep "HTTPSTATUS:" | cut -d: -f2)
+            STORE_BODY=$(echo "$NEW_STORE" | sed 's/HTTPSTATUS:.*//')
+            echo "HTTP status: $HTTP_CODE"
+            echo "Creation response: $(echo "$STORE_BODY" | head -c 800)"
 
-            # Parse connection string — try all known formats
-            PG_URL=$(echo "$NEW_STORE" | node -e "
-              let d=''; process.stdin.on('data',c=>d+=c);
+            # Try to extract connection string from all known response shapes
+            PG_URL=$(echo "$STORE_BODY" | node -e "
+              let d='';process.stdin.on('data',c=>d+=c);
               process.stdin.on('end',()=>{
                 try {
-                  const j = JSON.parse(d);
+                  const j=JSON.parse(d);
                   const url =
                     (Array.isArray(j.env) && (j.env.find(e=>e.key==='POSTGRES_URL')?.value)) ||
                     j.connectionString ||
                     j.connection?.connectionString ||
-                    j.dsn?.connectionString ||
+                    j.store?.connectionString ||
                     j.database?.connectionString ||
                     j.database?.dsn ||
-                    j.store?.connectionString ||
                     j.url || '';
                   console.log(url);
-                } catch(e){ console.log(''); }
-              });
-            " || echo "")
+                }catch(e){console.log('');}
+              });" || echo "")
 
             if [ -n "$PG_URL" ]; then
               echo "🔑 Setting POSTGRES_URL on project..."
-              curl -sf -X POST \
+              SET_RESP=$(curl -sf -X POST \
                 -H "Authorization: Bearer $TOKEN" \
                 -H "Content-Type: application/json" \
                 -d "[{\"key\":\"POSTGRES_URL\",\"value\":\"$PG_URL\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\",\"development\"]}]" \
-                "https://api.vercel.com/v9/projects/$PROJECT_ID/env" > /dev/null
+                "https://api.vercel.com/v9/projects/$PROJECT_ID/env${TPARAM}" || echo '{}')
+              echo "Set env response: $(echo "$SET_RESP" | head -c 200)"
               echo "✅ POSTGRES_URL set!"
               exit 0
             fi
-
-            sleep 3
+            sleep 5
           fi
 
           # ── 6. Re-check if env var was auto-set by Vercel ───────────────────
           ENV_VARS2=$(curl -sf -H "Authorization: Bearer $TOKEN" \
-            "https://api.vercel.com/v9/projects/$PROJECT_ID/env" || echo '{"envs":[]}')
+            "https://api.vercel.com/v9/projects/$PROJECT_ID/env${TPARAM}" || echo '{"envs":[]}')
 
           AUTO_SET=$(echo "$ENV_VARS2" | node -e "
-            let d=''; process.stdin.on('data',c=>d+=c);
+            let d='';process.stdin.on('data',c=>d+=c);
             process.stdin.on('end',()=>{
-              try {
-                const envs = JSON.parse(d).envs || [];
-                console.log(envs.find(e => e.key === 'POSTGRES_URL') ? 'yes' : '');
-              } catch(e){ console.log(''); }
-            });
-          " || echo "")
+              try{const e=JSON.parse(d).envs||[];console.log(e.find(e=>e.key==='POSTGRES_URL')?'yes':'');}
+              catch(e){console.log('');}
+            });" || echo "")
 
           if [ -n "$AUTO_SET" ]; then
             echo "✅ POSTGRES_URL was auto-set by Vercel"
             exit 0
           fi
 
-          # ── 7. Manual fallback ───────────────────────────────────────────────
+          # ── 7. Manual fallback ────────────────────────────────────────────────
           echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "⚠️  AUTO-PROVISION FAILED — MANUAL STEP NEEDED (2 min):"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⚠️  AUTO-PROVISION FAILED — ONE-TIME MANUAL STEP (~2 min):"
           echo ""
-          echo "  1. Go to: vercel.com → your project → Storage tab"
-          echo "  2. Click 'Connect Store' → Create New → Postgres"
-          echo "  3. Accept defaults → Create & Continue"
-          echo "     (Vercel adds POSTGRES_URL automatically)"
-          echo "  4. Come back here → Actions → Re-run workflow"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  OPTION A — Vercel Dashboard (easiest):"
+          echo "    1. vercel.com → ${PROJECT_NAME} → Storage tab"
+          echo "    2. Connect Store → Create New → Postgres"
+          echo "    3. Accept defaults → Create & Continue"
+          echo "       (Vercel sets POSTGRES_URL automatically)"
+          echo ""
+          echo "  OPTION B — Free external Postgres (Neon):"
+          echo "    1. neon.tech → Sign up free → New Project"
+          echo "    2. Copy the connection string (postgresql://...)"
+          echo "    3. vercel.com → ${PROJECT_NAME} → Settings → Env Vars"
+          echo "    4. Add: POSTGRES_URL = <your connection string>"
+          echo "       Target: Production + Preview + Development"
+          echo ""
+          echo "  After either option: GitHub Actions → Re-run workflow"
+          echo "  The app will then use persistent Postgres for all data."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   deploy:
     runs-on: ubuntu-latest
@@ -177,8 +229,7 @@ jobs:
         run: npm install -g vercel@latest
 
       - name: Deploy to Vercel
-        id: deploy
         run: |
-          DEPLOY_URL=$(vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }} 2>&1 | tail -1)
-          echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
-          echo "✅ Deployed to: $DEPLOY_URL"
+          vercel --prod --yes --token=${{ secrets.VERCEL_TOKEN }} 2>&1 | tee /tmp/deploy.log
+          echo "✅ Deploy complete"
+          tail -5 /tmp/deploy.log

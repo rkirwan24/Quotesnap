@@ -36,9 +36,9 @@ export async function getUserById(id: string): Promise<Row | null> {
   return Promise.resolve(sq().getUserById(id))
 }
 
-export async function createUser(email: string, passwordHash: string, contactName?: string): Promise<Row> {
-  if (IS_PG) return (await pg()).createUser(email, passwordHash, contactName)
-  return Promise.resolve(sq().createUser(email, passwordHash, contactName))
+export async function createUser(email: string, passwordHash: string, contactName?: string, tier?: string): Promise<Row> {
+  if (IS_PG) return (await pg()).createUser(email, passwordHash, contactName, tier)
+  return Promise.resolve(sq().createUser(email, passwordHash, contactName, tier))
 }
 
 // ── Profile operations ────────────────────────────────────────────────────────

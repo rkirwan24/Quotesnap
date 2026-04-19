@@ -44,25 +44,17 @@ function SignupForm() {
     }
     setLoading(true)
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-          data: { full_name: name },
+          data: { full_name: name, plan },
         },
       })
       if (error) throw error
-      // Update profile with name
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        await supabase.from('profiles').upsert({
-          id: user.id,
-          contact_name: name,
-          email,
-          subscription_tier: plan === 'starter' ? 'starter' : 'pro',
-        })
-      }
+      // Profile and tier are set server-side during sign-up
+      void data
       router.push('/dashboard/settings?onboarding=true')
       router.refresh()
     } catch (err: unknown) {

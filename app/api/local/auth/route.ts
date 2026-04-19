@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     if (action === 'sign-up') {
-      const { email, password, contact_name } = body
+      const { email, password, contact_name, plan } = body
       if (!email || !password) {
         return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
       }
@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
       if (existing) {
         return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 })
       }
-      const user = await createUser(email, hashPassword(password), contact_name)
+      const tier = plan === 'starter' ? 'starter' : 'pro'
+      const user = await createUser(email, hashPassword(password), contact_name as string | undefined, tier)
       const token = await createSessionToken(user.id as string, email)
       const response = NextResponse.json({ user })
       response.cookies.set({ ...getSessionCookieOptions(), value: token })

@@ -68,13 +68,14 @@ class LocalAuth {
   }: {
     email: string
     password: string
-    options?: { emailRedirectTo?: string; data?: { full_name?: string } }
+    options?: { emailRedirectTo?: string; data?: { full_name?: string; plan?: string } }
   }) {
     const json = await callAuth({
       action: 'sign-up',
       email,
       password,
       contact_name: options?.data?.full_name,
+      plan: options?.data?.plan,
     })
     if (json.error) return { data: null, error: new Error(json.error) }
     return { data: { user: json.user }, error: null }

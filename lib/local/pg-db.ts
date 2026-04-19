@@ -156,10 +156,10 @@ export async function getUserById(id: string): Promise<Row | null> {
   return rows[0] || null
 }
 
-export async function createUser(email: string, passwordHash: string, contactName?: string): Promise<Row> {
+export async function createUser(email: string, passwordHash: string, contactName?: string, tier?: string): Promise<Row> {
   const id = uuidv4()
   await q('INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)', [id, email, passwordHash])
-  await createProfile(id, email, contactName)
+  await createProfile(id, email, contactName, tier)
   return { id, email }
 }
 
