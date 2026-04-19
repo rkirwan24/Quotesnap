@@ -76,6 +76,15 @@ class ServerQueryBuilder {
   }
 
   private async _exec(): Promise<QRes> {
+    try {
+      return await this._execInner()
+    } catch (err) {
+      console.error('[ServerQueryBuilder]', this._table, this._op, err)
+      return { data: null, error: err instanceof Error ? err : new Error(String(err)) }
+    }
+  }
+
+  private async _execInner(): Promise<QRes> {
     const eqMap = Object.fromEntries(
       this._conditions.filter(([, op]) => op === 'eq').map(([f, , v]) => [f, v])
     )

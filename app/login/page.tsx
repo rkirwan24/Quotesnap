@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/components/ui/use-toast'
+import { AlertTriangle } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -18,8 +19,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [mode, setMode] = useState<'password' | 'magic'>('password')
+  const [dbWarning, setDbWarning] = useState<string | null>(null)
 
   const supabase = createClient()
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok) setDbWarning(data.fix || data.message)
+      })
+      .catch(() => {})
+  }, [])
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -30,9 +41,10 @@ export default function LoginPage() {
       router.push('/dashboard')
       router.refresh()
     } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Please check your email and password.'
       toast({
         title: 'Login failed',
-        description: err instanceof Error ? err.message : 'Please check your email and password.',
+        description: msg,
         variant: 'destructive',
       })
     } finally {
@@ -97,6 +109,16 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-white">Welcome back</h1>
           <p className="text-zinc-400 mt-1">Sign in to your QuoteSnap account</p>
         </div>
+
+        {dbWarning && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 mb-5 flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-amber-300 text-sm font-medium mb-1">Database setup required</p>
+              <p className="text-amber-200/70 text-xs leading-relaxed">{dbWarning}</p>
+            </div>
+          </div>
+        )}
 
         <div className="rounded-2xl border border-white/10 bg-[#111318] p-8">
           <div className="flex gap-2 mb-6 p-1 rounded-lg bg-white/5">

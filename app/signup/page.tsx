@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/components/ui/use-toast'
-import { Check } from 'lucide-react'
+import { Check, AlertTriangle } from 'lucide-react'
 
 function SignupForm() {
   const router = useRouter()
@@ -18,6 +18,14 @@ function SignupForm() {
   const plan = searchParams.get('plan') || 'pro'
 
   const [email, setEmail] = useState('')
+  const [dbWarning, setDbWarning] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(r => r.json())
+      .then(data => { if (!data.ok) setDbWarning(data.fix || data.message) })
+      .catch(() => {})
+  }, [])
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
@@ -78,6 +86,15 @@ function SignupForm() {
   return (
     <div className="min-h-screen bg-[#060709] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
+        {dbWarning && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 mb-5 flex gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-amber-300 text-sm font-medium mb-1">Database setup required</p>
+              <p className="text-amber-200/70 text-xs leading-relaxed">{dbWarning}</p>
+            </div>
+          </div>
+        )}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-8">
             <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center">

@@ -126,6 +126,11 @@ async function ensureSchema(): Promise<void> {
   _schemaReady = true
 }
 
+export async function ping(): Promise<void> {
+  const result = await getPool().query('SELECT 1 AS ping')
+  if (!result.rows[0]) throw new Error('Postgres ping failed')
+}
+
 async function q(text: string, params?: unknown[]): Promise<Row[]> {
   await ensureSchema()
   const result = await getPool().query(text, params)
