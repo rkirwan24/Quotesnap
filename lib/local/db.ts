@@ -298,10 +298,10 @@ export function getUserById(id: string): Row | null {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as Row | null
 }
 
-export function createUser(email: string, passwordHash: string, contactName?: string): Row {
+export function createUser(email: string, passwordHash: string, contactName?: string, tier?: string): Row {
   const db = getDB()
   const id = uuidv4()
   db.prepare('INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)').run(id, email, passwordHash)
-  createProfile(id, email, contactName)
+  createProfile(id, email, contactName, tier)
   return { id, email }
 }

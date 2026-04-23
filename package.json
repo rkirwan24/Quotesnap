@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "pg": "^8.13.3",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-label": "^2.1.0",
@@ -42,6 +43,7 @@
     "node": ">=18.17.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.10",
     "@types/node": "^22.8.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

@@ -13,7 +13,7 @@ import {
   countQuotes,
   getTemplates,
   createTemplate,
-} from './db'
+} from '../db'
 
 type Row = Record<string, unknown>
 type QRes<T = Row | Row[]> = { data: T | null; error: Error | null; count?: number | null }
@@ -68,7 +68,6 @@ class ServerQueryBuilder {
     return { data: arr[0] ?? null, error: null }
   }
 
-  // Make thenable so `await supabase.from(...).update(...).eq(...)` works
   then<T>(
     resolve?: ((v: QRes) => T) | null,
     reject?: ((e: unknown) => T) | null,
@@ -77,6 +76,15 @@ class ServerQueryBuilder {
   }
 
   private async _exec(): Promise<QRes> {
+    try {
+      return await this._execInner()
+    } catch (err) {
+      console.error('[ServerQueryBuilder]', this._table, this._op, err)
+      return { data: null, error: err instanceof Error ? err : new Error(String(err)) }
+    }
+  }
+
+  private async _execInner(): Promise<QRes> {
     const eqMap = Object.fromEntries(
       this._conditions.filter(([, op]) => op === 'eq').map(([f, , v]) => [f, v])
     )
@@ -84,23 +92,22 @@ class ServerQueryBuilder {
     if (this._op === 'select') {
       switch (this._table) {
         case 'profiles': {
-          const p = getProfile(this._userId)
+          const p = await getProfile(this._userId)
           return ok(p ? [p] : [])
         }
         case 'clients': {
-          const rows = getClients(this._userId)
+          const rows = await getClients(this._userId)
           return ok(rows)
         }
         case 'quotes': {
           if (eqMap.id) {
-            const q = getQuote(eqMap.id as string, this._userId)
+            const q = await getQuote(eqMap.id as string, this._userId)
             return ok(q ? [q] : [])
           }
           if (this._countExact) {
-            return ok([], countQuotes(this._userId))
+            return ok([], await countQuotes(this._userId))
           }
-          let rows = getQuotes(this._userId, this._limitVal)
-          // Apply .not() filters
+          let rows = await getQuotes(this._userId, this._limitVal)
           for (const [field, op, value] of this._notConds) {
             if (op === 'is' && value === null) {
               rows = rows.filter((r) => r[field] != null)
@@ -109,7 +116,7 @@ class ServerQueryBuilder {
           return ok(rows)
         }
         case 'quote_templates': {
-          const rows = getTemplates(this._userId)
+          const rows = await getTemplates(this._userId)
           return ok(rows)
         }
         default:
@@ -120,9 +127,9 @@ class ServerQueryBuilder {
     if (this._op === 'insert') {
       const payload = this._payload || {}
       switch (this._table) {
-        case 'clients': return ok([createClientRecord(this._userId, payload)])
-        case 'quotes': return ok([createQuoteRecord(this._userId, payload)])
-        case 'quote_templates': return ok([createTemplate(this._userId, payload)])
+        case 'clients': return ok([await createClientRecord(this._userId, payload)])
+        case 'quotes': return ok([await createQuoteRecord(this._userId, payload)])
+        case 'quote_templates': return ok([await createTemplate(this._userId, payload)])
         default: return { data: null, error: new Error(`Insert not supported: ${this._table}`) }
       }
     }
@@ -131,15 +138,15 @@ class ServerQueryBuilder {
       const payload = this._payload || {}
       switch (this._table) {
         case 'profiles': {
-          updateProfile(this._userId, payload)
+          await updateProfile(this._userId, payload)
           return ok([])
         }
         case 'clients': {
-          const r = updateClientRecord(eqMap.id as string, this._userId, payload)
+          const r = await updateClientRecord(eqMap.id as string, this._userId, payload)
           return ok(r ? [r] : [])
         }
         case 'quotes': {
-          const r = updateQuoteRecord(eqMap.id as string, this._userId, payload)
+          const r = await updateQuoteRecord(eqMap.id as string, this._userId, payload)
           return ok(r ? [r] : [])
         }
         default: return { data: null, error: new Error(`Update not supported: ${this._table}`) }
@@ -148,7 +155,7 @@ class ServerQueryBuilder {
 
     if (this._op === 'upsert') {
       if (this._table === 'profiles') {
-        updateProfile(this._userId, this._payload || {})
+        await updateProfile(this._userId, this._payload || {})
         return ok([])
       }
       return { data: null, error: new Error(`Upsert not supported: ${this._table}`) }
@@ -156,7 +163,7 @@ class ServerQueryBuilder {
 
     if (this._op === 'delete') {
       if (this._table === 'clients') {
-        deleteClientRecord(eqMap.id as string, this._userId)
+        await deleteClientRecord(eqMap.id as string, this._userId)
         return ok([])
       }
       return { data: null, error: new Error(`Delete not supported: ${this._table}`) }
@@ -195,7 +202,6 @@ export class LocalServerClient {
     return new ServerQueryBuilder(table, this._userId || '')
   }
 
-  // Storage stub — not used server-side in this app
   storage = {
     from: (bucket: string) => ({
       upload: async (_path: string, _file: unknown) => ({
