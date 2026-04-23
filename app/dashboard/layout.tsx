@@ -11,17 +11,28 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
+  let user = null
+  try {
+    const res = await supabase.auth.getUser()
+    user = res.data?.user ?? null
+  } catch {
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  if (!user) redirect('/login')
+
+  let profile = null
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    profile = data
+  } catch {
+    // Profile fetch failed — render without profile
+  }
 
   return (
     <div className="min-h-screen bg-background dark" style={{ colorScheme: 'dark' }}>
