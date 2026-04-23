@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [mode, setMode] = useState<'password' | 'magic'>('password')
   const [dbWarning, setDbWarning] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -34,6 +35,7 @@ export default function LoginPage() {
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
+    setError(null)
     setLoading(true)
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -42,11 +44,8 @@ export default function LoginPage() {
       router.refresh()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Please check your email and password.'
-      toast({
-        title: 'Login failed',
-        description: msg,
-        variant: 'destructive',
-      })
+      setError(msg)
+      toast({ title: 'Login failed', description: msg, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -54,22 +53,19 @@ export default function LoginPage() {
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault()
+    setError(null)
     setLoading(true)
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-        },
+        options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
       })
       if (error) throw error
       setMagicLinkSent(true)
     } catch (err: unknown) {
-      toast({
-        title: 'Could not send magic link',
-        description: err instanceof Error ? err.message : 'Please try again.',
-        variant: 'destructive',
-      })
+      const msg = err instanceof Error ? err.message : 'Please try again.'
+      setError(msg)
+      toast({ title: 'Could not send magic link', description: msg, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -176,6 +172,12 @@ export default function LoginPage() {
                     required
                     className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-zinc-600"
                   />
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
+                  {error}
                 </div>
               )}
 

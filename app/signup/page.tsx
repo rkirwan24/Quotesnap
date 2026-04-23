@@ -19,6 +19,7 @@ function SignupForm() {
 
   const [email, setEmail] = useState('')
   const [dbWarning, setDbWarning] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/health')
@@ -34,12 +35,9 @@ function SignupForm() {
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
+    setError(null)
     if (password.length < 8) {
-      toast({
-        title: 'Password too short',
-        description: 'Password must be at least 8 characters.',
-        variant: 'destructive',
-      })
+      setError('Password must be at least 8 characters.')
       return
     }
     setLoading(true)
@@ -53,16 +51,13 @@ function SignupForm() {
         },
       })
       if (error) throw error
-      // Profile and tier are set server-side during sign-up
       void data
       router.push('/dashboard/settings?onboarding=true')
       router.refresh()
     } catch (err: unknown) {
-      toast({
-        title: 'Signup failed',
-        description: err instanceof Error ? err.message : 'Please try again.',
-        variant: 'destructive',
-      })
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+      setError(msg)
+      toast({ title: 'Signup failed', description: msg, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -154,6 +149,12 @@ function SignupForm() {
                   className="mt-1.5 bg-white/5 border-white/10 text-white placeholder:text-zinc-600"
                 />
               </div>
+
+              {error && (
+                <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
+                  {error}
+                </div>
+              )}
 
               <Button
                 type="submit"
