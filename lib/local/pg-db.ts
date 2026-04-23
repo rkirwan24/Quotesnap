@@ -9,15 +9,21 @@ let _pool: Pool | null = null
 
 function getPool(): Pool {
   if (!_pool) {
-    const url = process.env.POSTGRES_URL || process.env.DATABASE_URL || ''
+    // Prefer non-pooling URL for Vercel Postgres (Neon) to avoid pgBouncer limits on DDL
+    const url = process.env.POSTGRES_URL_NON_POOLING
+      || process.env.POSTGRES_URL
+      || process.env.DATABASE_URL
+      || ''
+    const isLocal = url.includes('localhost') || url.includes('127.0.0.1')
     _pool = new Pool({
       connectionString: url,
       max: 3,
       idleTimeoutMillis: 20000,
-      connectionTimeoutMillis: 5000,
-      ssl: url.includes('localhost') || url.includes('127.0.0.1')
-        ? false
-        : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+    })
+    _pool.on('error', (err) => {
+      console.error('[pg pool] idle client error', err.message)
     })
   }
   return _pool
