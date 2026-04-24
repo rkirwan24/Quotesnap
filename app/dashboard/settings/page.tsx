@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { SettingsManager } from '@/components/dashboard/SettingsManager'
 

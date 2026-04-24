@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { formatCurrency, formatDate, getFirstName, getQuoteStatusColour, truncate } from '@/lib/utils'
